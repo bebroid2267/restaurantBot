@@ -9,7 +9,9 @@ namespace restaurantBot
 {
     public static class DataBase
     {
-        private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant.db";
+        //private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant.db";
+        private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
+
 
         public async static Task<bool> IfExistsUser(string userId)
         {
@@ -109,7 +111,7 @@ namespace restaurantBot
                 }
                 else
                 {
-                    command.CommandText = $"INSERT INTO state_reservetion (user_id, count_people) values (@user_id, @count_people)"
+                    command.CommandText = $"INSERT INTO state_reservetion (user_id, count_people) values (@user_id, @count_people)";
                     command.Parameters.AddWithValue("@user_id", userId);
                     command.Parameters.AddWithValue("@count_people", countPeople);
                 }
@@ -119,7 +121,7 @@ namespace restaurantBot
             }
 
         }
-        public async static Task AddDateState(string userId, string date)
+        public async static Task AddInfoState(string userId, string info, string whatIs)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             {
@@ -127,7 +129,18 @@ namespace restaurantBot
 
                 var command = new SqliteCommand();
                 command.Connection = connection;
-                command.CommandText = $"UPDATE state_reservetion SET date = '{date}' WHERE user_id LIKE '{userId}')";
+                if (whatIs == "date")
+                {
+                    command.CommandText = $"UPDATE state_reservetion SET date = '{info}' WHERE user_id LIKE '{userId}'";
+                }
+                else if (whatIs == "time")
+                {
+                    command.CommandText = $"UPDATE state_reservetion SET time = '{info}' WHERE user_id LIKE '{userId}'";
+                }
+                else if (whatIs == "table")
+                {
+                    command.CommandText = $"UPDATE state_reservetion SET id_table = '{info}' WHERE user_id LIKE '{userId}'";
+                }
 
                 await command.ExecuteNonQueryAsync();
                 await connection.CloseAsync();
@@ -135,21 +148,6 @@ namespace restaurantBot
 
         }
 
-        public async static Task AddTimeState(string userId, string time)
-        {
-            using (SqliteConnection connection = new SqliteConnection(connectionString))
-            {
-                connection.Open();
-
-                var command = new SqliteCommand();
-                command.Connection = connection;
-                command.CommandText = $"UPDATE state_reservetion SET time = '{time}' WHERE user_id LIKE '{userId}')";
-
-                await command.ExecuteNonQueryAsync();
-                await connection.CloseAsync();
-            }
-
-        }
         public async static Task<string> GetInfoState(string userId, string info)
         {
             string infoState = string.Empty;
@@ -182,11 +180,156 @@ namespace restaurantBot
                 {
                     infoState = reader.GetString(0);
                 }
+
+                await connection.CloseAsync();
                 return infoState;
 
                 
             }
         }
+
+        public async static Task<List<string>> GetAllInfoState(string userId, string ifIdExists)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<string> allInfoState = new List<string>();
+
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+
+                if (ifIdExists == "noId")
+                {
+                    command.CommandText = $"SELECT count_people, date, time FROM state_reservetion WHERE user_id LIKE '{userId}'";
+
+                    var reader = await command.ExecuteReaderAsync();
+
+                    while (await reader.ReadAsync())
+                    {
+                        allInfoState.Add(reader.GetString(0));
+                        allInfoState.Add(reader.GetString(1));
+                        allInfoState.Add(reader.GetString(2));
+                    }
+                }
+                else if (ifIdExists == "id")
+                {
+                    command.CommandText = $"SELECT count_people, date, time, id_table FROM state_reservetion WHERE user_id LIKE '{userId}'";
+
+                    var reader = await command.ExecuteReaderAsync();
+
+                    while (await reader.ReadAsync())
+                    {
+                        allInfoState.Add(reader.GetString(0));
+                        allInfoState.Add(reader.GetString(1));
+                        allInfoState.Add(reader.GetString(2));
+                        allInfoState.Add(reader.GetString(3));
+                    }
+                }
+
+                await connection.CloseAsync();
+                return allInfoState;
+
+
+            }
+
+        }
+
+        private async static Task<bool> IfExistsReserve(string countPeople, string date, string time)
+        {
+            using (SqliteConnection connection =  new SqliteConnection(connectionString))
+            {
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT COUNT(*) FROM reservation WHERE count_people LIKE '{countPeople}'" +
+                    $"AND  reserve_date LIKE'{date}' AND reserve_time LIKE '{time}'";
+
+                object result = await command.ExecuteScalarAsync();
+                long count = Convert.ToInt64(result);
+
+                if (count > 0)
+                {
+                    await connection.CloseAsync();
+                    return true;
+                }
+                else
+                {
+                    await connection.CloseAsync();
+                    return false;
+                }
+            }
+
+        }
+        public async static Task<List<string>> GetFreeIdTables(string countPeople, string date, string time)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<string> freeIds = new List<string>();
+
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+
+                List<string> idsBusyTable = await GetBusyIdTableReservation(countPeople, date, time);
+
+                if (idsBusyTable.Count == 0)
+                {
+                    command.CommandText = $"SELECT id_table FROM tables WHERE count_seats LIKE '{countPeople}'";
+                }
+                else
+                { 
+                    command.CommandText = $"SELECT id_table FROM tables WHERE count_seats LIKE '{countPeople}' AND id_table NOT IN '{string.Join(",",idsBusyTable)}'";
+                }
+                
+                var reader = await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    freeIds.Add(reader.GetString(0));
+                }
+                await connection.CloseAsync();
+                return freeIds;
+            }
+
+        }
+
+        private async static Task<List<string>> GetBusyIdTableReservation(string countPeople, string date, string time)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<string> idTables = new List<string>();
+
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+
+                if (await IfExistsReserve(countPeople, date, time))
+                {
+                    command.CommandText = $"SELECT id_table FROM reservation WHERE count_people LIKE '{countPeople}'" +
+                    $"AND  reserve_date LIKE'{date}' AND reserve_time LIKE '{time}'";
+                }
+                else
+                {
+                    await connection.CloseAsync();
+                    return idTables;
+                }
+
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    idTables.Add(reader.GetString(0));
+                }
+                await connection.CloseAsync();
+                return idTables;
+            }
+
+        }
+
+
 
     }
 }

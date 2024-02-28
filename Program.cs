@@ -61,19 +61,18 @@ namespace restaurantBot
                     }
 
                     await DataBase.AddUser(message.Chat.Id.ToString(),DateTime.UtcNow.ToString(),userName);
-                    
-                    await bot.SendTextMessageAsync(message.Chat.Id,"Приветствую! \n Вы можете забронировать столик в наш ресторан прямо сейчас. " +
-                        "\n Или же выберите что вас интересует", replyMarkup: ShowInlineReserveButton());
-                     
+
+                    await bot.SendTextMessageAsync(message.Chat.Id,
+                        text: "Приветствую! \n Вы можете забронировать столик в наш ресторан прямо сейчас. " +
+                        "\n Или же выберите что вас интересует",
+                        replyMarkup: ShowInlineReserveButton());
                 }
                 else 
                 {
                     await bot.SendTextMessageAsync(message.Chat.Id, "Вы");
                 }
 
-
             }
-
 
         }
 
@@ -81,30 +80,67 @@ namespace restaurantBot
         {
             if (callback.Data == "bron")
             {
-                await bot.SendTextMessageAsync(callback.Message.Chat.Id, "Выберите на какое количество людей вы хотите забронировать столик ", replyMarkup: ShowInlineCountPeopleButton());
-
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id, 
+                    text: "Выберите на какое количество людей вы хотите забронировать столик ", 
+                    replyMarkup: ShowInlineCountPeopleButton());
             }
-            else if (callback.Data.Contains('-'))
+
+            else if (callback.Data.Contains('-') || callback.Data == "backtime")
             { 
                 List<string> days = GetDaysInMonth();
-                await bot.SendTextMessageAsync(callback.Message.Chat.Id,"Выберите дату бронирования",replyMarkup: ShowInlineDateTimeReservation(days, "days"));
+
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id,
+                    text: "Выберите дату бронирования",
+                    replyMarkup: ShowInlineDateTimeReservation(days, "days"));
 
                 await DataBase.AddCountPeopleState(callback.Message.Chat.Id.ToString(),callback.Data);
             }
 
-            else if (callback.Data.Contains("days"))
+            else if (callback.Data.Contains("days") || callback.Data == "backTable")
             { 
                 List<string> hours = GetTimeDay();
-                await bot.SendTextMessageAsync(callback.Message.Chat.Id, "Выберите время для бронирования", replyMarkup: ShowInlineDateTimeReservation(hours, "time"));
+
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id, 
+                    text: "Выберите время для бронирования", 
+                    replyMarkup: ShowInlineDateTimeReservation(hours, "time"));
                 
                 string dateState = callback.Data.Substring(4);
-                await DataBase.AddDateState(callback.Message.Chat.Id.ToString(),dateState);
+                await DataBase.AddInfoState(callback.Message.Chat.Id.ToString(),dateState, "date");
             }
 
-            else if (callback.Data.Contains("time"))
+            else if (callback.Data.Contains("time") || callback.Data == "backFinally")
             { 
                 string timeState = callback.Data.Substring(4);
-                await DataBase.AddTimeState(callback.Message.Chat.Id.ToString(), timeState);
+                await DataBase.AddInfoState(callback.Message.Chat.Id.ToString(), timeState, "time");
+
+                List<string> infoReresvation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "noId");
+                List<string> idsFreeTables = await DataBase.GetFreeIdTables(infoReresvation[0], infoReresvation[1], infoReresvation[2]);
+
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id.ToString(),
+                    text: "<b>Вот свободные столики на указанное время, дату и количество человек</b>",
+                    replyMarkup: ShowInlineTableReservation(idsFreeTables),
+                    parseMode: ParseMode.Html);
+            }
+
+            else if (callback.Data.Contains("table"))
+            {
+                string idTable = callback.Data.Substring(6);
+                await DataBase.AddInfoState(callback.Message.Chat.Id.ToString(),idTable, "table");
+
+                List<string> infoReservation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "id");
+
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id, 
+                    text: $"Проверьте вашу заявку: \n Количество человек: {infoReservation[0]} " +
+                    $"\n Дата: {infoReservation[1]} \n Время: {infoReservation[2]} \n Номер столика: {infoReservation[3]}",
+                    replyMarkup: ShowFinallyReservationButton());
+            }
+            else if (callback.Data == "sendBron")
+            {
 
 
             }
@@ -143,7 +179,9 @@ namespace restaurantBot
             {
                 InlineKeyboardButton.WithCallbackData(text: "1 - 2", "1-2"),
                 InlineKeyboardButton.WithCallbackData(text: "3 - 4", "3-4"),
-                InlineKeyboardButton.WithCallbackData(text: "5 - 6", "5-6")
+                InlineKeyboardButton.WithCallbackData(text: "5 - 6", "5-6"),
+                InlineKeyboardButton.WithCallbackData(text: "◀️", "backCountPeople")
+
             });
             return new InlineKeyboardMarkup(buttonRows);
         }
@@ -167,6 +205,9 @@ namespace restaurantBot
                     buttonsRow.Add(InlineKeyboardButton.WithCallbackData(day.ToString(), $"{infoDateTime}" + day.ToString()));
                 }
 
+                buttonsRow.Add(InlineKeyboardButton.WithCallbackData(text: "◀️", $"back{infoDateTime}"));
+            
+
                 inlineButtons.Add(buttonsRow);
             }
             return new InlineKeyboardMarkup(inlineButtons);
@@ -182,9 +223,26 @@ namespace restaurantBot
                 {
                     InlineKeyboardButton.WithCallbackData(text: $"Столик N {table}", $"table {table}" )
                 });
-                    
+                
                     
             }
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "◀️", "backTable")
+            });
+                
+            return new InlineKeyboardMarkup(buttonRows);
+        }
+
+        private static InlineKeyboardMarkup ShowFinallyReservationButton()
+        {
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "✅","sendBron"),
+                InlineKeyboardButton.WithCallbackData(text: "◀️", "backFinally")
+            });
             return new InlineKeyboardMarkup(buttonRows);
         }
 
