@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -9,8 +10,8 @@ namespace restaurantBot
 {
     public static class DataBase
     {
-        //private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant.db";
-        private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
+        private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant.db";
+        //private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
 
 
         public async static Task<bool> IfExistsUser(string userId)
@@ -326,6 +327,55 @@ namespace restaurantBot
                 await connection.CloseAsync();
                 return idTables;
             }
+
+        }
+
+        private async static Task<long> GetIdClientUser(string userId)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                long idUser = 0;
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection= connection;
+                command.CommandText = $"SELECT id_client FROM users WHERE user_id LIKE '{userId}'";
+
+                var reader = await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    idUser = reader.GetInt64(0);
+                }
+                return idUser;
+            }
+
+        }
+        public async static Task AddReservation(string idTable, string reserveDate, string userId, string reserveTime, string countPeople)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                connection.Open();
+
+                var command = new SqliteCommand();
+                connection.ConnectionString = connectionString;
+
+                long idClient = await GetIdClientUser(userId);
+                DateTime dateNow = DateTime.UtcNow;
+                DateTime reserveEndTime = Convert.ToDateTime(reserveTime).AddHours(5);
+
+                command.CommandText = $"INSERT INTO reservation (id_table, reg_date, reserve_date, id_client, reserve_time, count_people, reserve_end_time)" +
+                    $" values (@id_table, @reg_date, @reserve_date, @id_client, @count_people, @reserve_end_time)";
+
+                command.Parameters.AddWithValue("@id_table", Convert.ToInt32(idTable));
+                command.Parameters.AddWithValue("@reg_date", dateNow.ToString());
+                command.Parameters.AddWithValue("@reserve_date", reserveDate);
+                command.Parameters.AddWithValue("@id_client", idClient);
+                command.Parameters.AddWithValue("@reserve_time", reserveTime);
+                command.Parameters.AddWithValue("@count_people", countPeople);
+                command.Parameters.AddWithValue("@reserve_end_time", );
+            }
+
 
         }
 

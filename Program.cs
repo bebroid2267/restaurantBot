@@ -10,6 +10,7 @@ namespace restaurantBot
 {
     internal class Program
     {
+        private static string callbackData = string.Empty;
         enum StateReserve
         {
             ChoiceCountPeople,
@@ -45,7 +46,8 @@ namespace restaurantBot
 
         }
         private static async Task HandleMessage(ITelegramBotClient bot, Message message)
-        {
+        { 
+
             if (message.Text != null)
             {
                 var msg = message.Text;
@@ -77,9 +79,10 @@ namespace restaurantBot
         }
 
         private static async Task HandleCallbackQueary(ITelegramBotClient bot, CallbackQuery? callback)
-        {
-            if (callback.Data == "bron")
-            {
+        { 
+
+            if (callback.Data == "bron" || callback.Data == "backdays")
+            { 
                 await bot.SendTextMessageAsync(
                     chatId: callback.Message.Chat.Id, 
                     text: "Выберите на какое количество людей вы хотите забронировать столик ", 
@@ -87,7 +90,12 @@ namespace restaurantBot
             }
 
             else if (callback.Data.Contains('-') || callback.Data == "backtime")
-            { 
+            {
+                if (callback.Data.Contains('-'))
+                {
+                    callbackData = callback.Data;
+                }
+
                 List<string> days = GetDaysInMonth();
 
                 await bot.SendTextMessageAsync(
@@ -95,11 +103,16 @@ namespace restaurantBot
                     text: "Выберите дату бронирования",
                     replyMarkup: ShowInlineDateTimeReservation(days, "days"));
 
-                await DataBase.AddCountPeopleState(callback.Message.Chat.Id.ToString(),callback.Data);
+                await DataBase.AddCountPeopleState(callback.Message.Chat.Id.ToString(),callbackData);
             }
 
-            else if (callback.Data.Contains("days") || callback.Data == "backTable")
-            { 
+            else if (callback.Data.StartsWith("days") || callback.Data == "backTable")
+            {
+                if (callback.Data.Contains("days"))
+                {
+                    callbackData = callback.Data;
+                }
+
                 List<string> hours = GetTimeDay();
 
                 await bot.SendTextMessageAsync(
@@ -107,13 +120,18 @@ namespace restaurantBot
                     text: "Выберите время для бронирования", 
                     replyMarkup: ShowInlineDateTimeReservation(hours, "time"));
                 
-                string dateState = callback.Data.Substring(4);
+                string dateState = callbackData.Substring(4);
                 await DataBase.AddInfoState(callback.Message.Chat.Id.ToString(),dateState, "date");
             }
 
             else if (callback.Data.Contains("time") || callback.Data == "backFinally")
-            { 
-                string timeState = callback.Data.Substring(4);
+            {
+                if (callback.Data.Contains("time"))
+                {
+                    callbackData = callback.Data;
+                }
+
+                string timeState = callbackData.Substring(4);
                 await DataBase.AddInfoState(callback.Message.Chat.Id.ToString(), timeState, "time");
 
                 List<string> infoReresvation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "noId");
@@ -202,14 +220,20 @@ namespace restaurantBot
 
                 foreach (var day in group)
                 {
+
+
                     buttonsRow.Add(InlineKeyboardButton.WithCallbackData(day.ToString(), $"{infoDateTime}" + day.ToString()));
                 }
 
-                buttonsRow.Add(InlineKeyboardButton.WithCallbackData(text: "◀️", $"back{infoDateTime}"));
-            
+                
 
                 inlineButtons.Add(buttonsRow);
             }
+            var buttonRowBack = new List<InlineKeyboardButton>();
+            buttonRowBack.Add(InlineKeyboardButton.WithCallbackData(text: "◀️", $"back{infoDateTime}"));
+
+            inlineButtons.Add(buttonRowBack);
+
             return new InlineKeyboardMarkup(inlineButtons);
 
         }
