@@ -362,7 +362,16 @@ namespace restaurantBot
 
                 long idClient = await GetIdClientUser(userId);
                 DateTime dateNow = DateTime.UtcNow;
-                DateTime reserveEndTime = Convert.ToDateTime(reserveTime).AddHours(5);
+                DateTime reserveEndTime = Convert.ToDateTime(reserveTime);
+                
+                if (reserveEndTime.Hour <= 19)
+                {
+                    reserveEndTime.AddHours(5);
+                }
+                else
+                { 
+                    reserveEndTime.AddHours(24 - reserveEndTime.Hour);
+                }
 
                 command.CommandText = $"INSERT INTO reservation (id_table, reg_date, reserve_date, id_client, reserve_time, count_people, reserve_end_time)" +
                     $" values (@id_table, @reg_date, @reserve_date, @id_client, @count_people, @reserve_end_time)";
@@ -373,7 +382,10 @@ namespace restaurantBot
                 command.Parameters.AddWithValue("@id_client", idClient);
                 command.Parameters.AddWithValue("@reserve_time", reserveTime);
                 command.Parameters.AddWithValue("@count_people", countPeople);
-                command.Parameters.AddWithValue("@reserve_end_time", );
+                command.Parameters.AddWithValue("@reserve_end_time", reserveEndTime);
+
+                await command.ExecuteNonQueryAsync();
+                await connection.CloseAsync();
             }
 
 

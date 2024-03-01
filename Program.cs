@@ -159,7 +159,9 @@ namespace restaurantBot
             }
             else if (callback.Data == "sendBron")
             {
+                List<string> allInfo = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(),"id");
 
+                await DataBase.AddReservation();
 
             }
                     
