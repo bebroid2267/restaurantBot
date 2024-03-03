@@ -134,8 +134,8 @@ namespace restaurantBot
                 string timeState = callbackData.Substring(4);
                 await DataBase.AddInfoState(callback.Message.Chat.Id.ToString(), timeState, "time");
 
-                List<string> infoReresvation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "noId");
-                List<string> idsFreeTables = await DataBase.GetFreeIdTables(infoReresvation[0], infoReresvation[1], infoReresvation[2]);
+                ReservationInfo infoReresvation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "noId");
+                List<string> idsFreeTables = await DataBase.GetFreeIdTables(infoReresvation.CountPeople, infoReresvation.ReserveDate, infoReresvation.ReserveTime);
 
                 await bot.SendTextMessageAsync(
                     chatId: callback.Message.Chat.Id.ToString(),
@@ -149,24 +149,54 @@ namespace restaurantBot
                 string idTable = callback.Data.Substring(6);
                 await DataBase.AddInfoState(callback.Message.Chat.Id.ToString(),idTable, "table");
 
-                List<string> infoReservation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "id");
+                ReservationInfo infoReservation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "id");
 
                 await bot.SendTextMessageAsync(
                     chatId: callback.Message.Chat.Id, 
-                    text: $"Проверьте вашу заявку: \n Количество человек: {infoReservation[0]} " +
-                    $"\n Дата: {infoReservation[1]} \n Время: {infoReservation[2]} \n Номер столика: {infoReservation[3]}",
+                    text: $"Проверьте вашу заявку: \n Количество человек: {infoReservation.CountPeople} " +
+                    $"\n Дата: {infoReservation.ReserveDate} \n Время: {infoReservation.ReserveTime} \n Номер столика: {infoReservation.IdTable}",
                     replyMarkup: ShowFinallyReservationButton());
             }
+
             else if (callback.Data == "sendBron")
             {
-                List<string> allInfo = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(),"id");
+                ReservationInfo allInfo = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(),"id");
 
-                await DataBase.AddReservation();
+                await DataBase.AddReservation(
+                    allInfo.IdTable, 
+                    allInfo.ReserveDate, 
+                    callback.Message.Chat.Id.ToString(),
+                    allInfo.ReserveTime, 
+                    allInfo.CountPeople
+                    );
+
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id, 
+                    text: "Ваша бронь отправлена на подтверждение администратору. \n Пожалуйста ожидайте! "); 
+            }
+
+            else if (callback.Data.Contains("cancel"))
+            {
+                int idResevation = Convert.ToInt32(callback.Data.Substring(7));
+
+
+                await bot.SendTextMessageAsync(callback.Message.Chat.Id, "К сожалению, ваша бронь была отменена. \n Попробуйте еще раз.") ;
+            }
+
+            else if (callback.Data.Contains("change"))
+            {
+
+            }
+
+            else if (callback.Data.Contains("accept"))
+            {
 
             }
                     
 
         }
+
+
 
         private static Task Error(ITelegramBotClient client, Exception exception, CancellationToken token)
         {

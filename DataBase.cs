@@ -5,6 +5,7 @@ using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using Telegram.Bot.Types;
 
 namespace restaurantBot
 {
@@ -189,11 +190,11 @@ namespace restaurantBot
             }
         }
 
-        public async static Task<List<string>> GetAllInfoState(string userId, string ifIdExists)
+        public async static Task<ReservationInfo> GetAllInfoState(string userId, string ifIdExists)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             {
-                List<string> allInfoState = new List<string>();
+                ReservationInfo allInfoState = new ReservationInfo();
 
                 connection.Open();
 
@@ -207,10 +208,10 @@ namespace restaurantBot
                     var reader = await command.ExecuteReaderAsync();
 
                     while (await reader.ReadAsync())
-                    {
-                        allInfoState.Add(reader.GetString(0));
-                        allInfoState.Add(reader.GetString(1));
-                        allInfoState.Add(reader.GetString(2));
+                    { 
+                        allInfoState.CountPeople = reader.GetString(0);
+                        allInfoState.ReserveDate = reader.GetString(1);
+                        allInfoState.ReserveTime = reader.GetString(2);
                     }
                 }
                 else if (ifIdExists == "id")
@@ -220,11 +221,11 @@ namespace restaurantBot
                     var reader = await command.ExecuteReaderAsync();
 
                     while (await reader.ReadAsync())
-                    {
-                        allInfoState.Add(reader.GetString(0));
-                        allInfoState.Add(reader.GetString(1));
-                        allInfoState.Add(reader.GetString(2));
-                        allInfoState.Add(reader.GetString(3));
+                    { 
+                        allInfoState.CountPeople = reader.GetString(0);
+                        allInfoState.ReserveDate = reader.GetString(1);
+                        allInfoState.ReserveTime = reader.GetString(2);
+                        allInfoState.IdTable = reader.GetInt32(3);
                     }
                 }
 
@@ -347,11 +348,12 @@ namespace restaurantBot
                 {
                     idUser = reader.GetInt64(0);
                 }
+                await connection.CloseAsync();
                 return idUser;
             }
 
         }
-        public async static Task AddReservation(string idTable, string reserveDate, string userId, string reserveTime, string countPeople)
+        public async static Task AddReservation(int idTable, string reserveDate, string userId, string reserveTime, string countPeople)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             {
@@ -374,15 +376,16 @@ namespace restaurantBot
                 }
 
                 command.CommandText = $"INSERT INTO reservation (id_table, reg_date, reserve_date, id_client, reserve_time, count_people, reserve_end_time)" +
-                    $" values (@id_table, @reg_date, @reserve_date, @id_client, @count_people, @reserve_end_time)";
+                    $" values (@id_table, @reg_date, @reserve_date, @id_client, @count_people, @reserve_end_time, @confirmation)";
 
-                command.Parameters.AddWithValue("@id_table", Convert.ToInt32(idTable));
+                command.Parameters.AddWithValue("@id_table", idTable);
                 command.Parameters.AddWithValue("@reg_date", dateNow.ToString());
                 command.Parameters.AddWithValue("@reserve_date", reserveDate);
                 command.Parameters.AddWithValue("@id_client", idClient);
                 command.Parameters.AddWithValue("@reserve_time", reserveTime);
                 command.Parameters.AddWithValue("@count_people", countPeople);
                 command.Parameters.AddWithValue("@reserve_end_time", reserveEndTime);
+                command.Parameters.AddWithValue("@confirmation", "no");
 
                 await command.ExecuteNonQueryAsync();
                 await connection.CloseAsync();
@@ -391,6 +394,38 @@ namespace restaurantBot
 
         }
 
+        public async static Task<List<ReservationInfo>> GetReservationNoConfiration()
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<ReservationInfo> reservations = new();
+
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT id_table, reserve_date, reserve_time, count_people, id_reservation FROM reservation WHERE confirmation LIKE 'no'";
+
+                var reader = await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    ReservationInfo info = new();
+                    info.IdTable = reader.GetInt32(0);
+                    info.ReserveDate = reader.GetString(1);
+                    info.ReserveTime = reader.GetString(2);
+                    info.CountPeople = reader.GetString(3);
+                    info.IdReservation = reader.GetInt32(4);
+
+                    reservations.Add(info);
+                }
+
+                await connection.CloseAsync();
+
+                return reservations;
+            }
+
+        }
 
 
     }
