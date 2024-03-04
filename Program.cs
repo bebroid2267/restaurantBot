@@ -11,6 +11,13 @@ namespace restaurantBot
     internal class Program
     {
         private static string callbackData = string.Empty;
+        private static Admin admin;
+
+        enum Users
+        {
+            Client = 1,
+            Admin
+        }
         enum StateReserve
         {
             ChoiceCountPeople,
@@ -19,7 +26,7 @@ namespace restaurantBot
 
         }
         private StateReserve _stateReserve;
-
+        private static Users statusUser;
         static void Main(string[] args)
         {
             var bot = new TelegramBotClient("6717902573:AAFllwaelabWcpQyJI6_BjO8PUOQ1aNWhT4");
@@ -33,12 +40,31 @@ namespace restaurantBot
         {
             if (update != null)
             {
+                
                 if (update.Type == UpdateType.Message && update?.Message?.Text != null)
                 {
+                    if (update.Message.Chat.Id == 809666698 && admin != null)
+                    {
+                        statusUser = Users.Admin;
+                        admin = new Admin(update.Message.Chat.Id, bot);
+                    }
+                    else if (statusUser == 0)
+                    {
+                        statusUser = Users.Client;
+                    }
                     await HandleMessage(bot,update.Message);
                 }
                 else if (update.Type == UpdateType.CallbackQuery)
                 {
+                    if (update.CallbackQuery.Message.Chat.Id == 809666698 && admin != null)
+                    {
+                        statusUser = Users.Admin;
+                        admin = new Admin(update.Message.Chat.Id, bot);
+                    }
+                    else if (statusUser == 0)
+                    {
+                        statusUser = Users.Client;
+                    }
                     await HandleCallbackQueary(bot,update.CallbackQuery);
                 }
 
@@ -64,10 +90,23 @@ namespace restaurantBot
 
                     await DataBase.AddUser(message.Chat.Id.ToString(),DateTime.UtcNow.ToString(),userName);
 
+                    if (statusUser == Users.Admin)
+                    {
+                        await bot.SendTextMessageAsync(
+                            chatId: message.Chat.Id,
+                            text: "Приветствую! Вы - Админ",
+                            replyMarkup: ButtonMarkupAdmin());
+                    }
+
                     await bot.SendTextMessageAsync(message.Chat.Id,
-                        text: "Приветствую! \n Вы можете забронировать столик в наш ресторан прямо сейчас. " +
+                        text: "Приветствую! \n Вы можете забронировать столик в нашем ресторане прямо сейчас. " +
                         "\n Или же выберите что вас интересует",
                         replyMarkup: ShowInlineReserveButton());
+                }
+
+                else if (message.Text == "Добавить админа" && statusUser == Users.Admin)
+                {
+
                 }
                 else 
                 {
@@ -172,15 +211,20 @@ namespace restaurantBot
 
                 await bot.SendTextMessageAsync(
                     chatId: callback.Message.Chat.Id, 
-                    text: "Ваша бронь отправлена на подтверждение администратору. \n Пожалуйста ожидайте! "); 
+                    text: "Ваша бронь отправлена на подтверждение администратору. \n Пожалуйста ожидайте! ");
+                
+
             }
 
             else if (callback.Data.Contains("cancel"))
             {
                 int idResevation = Convert.ToInt32(callback.Data.Substring(7));
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id, 
+                    text: "К сожалению, ваша бронь была отменена. \n Попробуйте еще раз.");
 
-
-                await bot.SendTextMessageAsync(callback.Message.Chat.Id, "К сожалению, ваша бронь была отменена. \n Попробуйте еще раз.") ;
+                await DataBase.DeleteReservation(idResevation);
+                await DataBase.DeleteStateReservation(callback.Message.Chat.Id.ToString());
             }
 
             else if (callback.Data.Contains("change"))
@@ -331,6 +375,17 @@ namespace restaurantBot
                 }
                 return days;
 
+        }
+        public static ReplyKeyboardMarkup ButtonMarkupAdmin()
+        {
+            ReplyKeyboardMarkup reply = new(new[]
+            {
+                new KeyboardButton( "Добавить админа" )
+            })
+            {
+                ResizeKeyboard = true
+            };
+            return reply;
         }
 
     }

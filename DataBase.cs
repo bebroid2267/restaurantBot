@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using Microsoft.Data.Sqlite;
 using Telegram.Bot.Types;
 
@@ -236,6 +237,24 @@ namespace restaurantBot
             }
 
         }
+        public async static Task DeleteStateReservation(string userId)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"DELETE FROM state_reservetion WHERE user_id LIKE '{userId}' LIMIT 1";
+
+                await command.ExecuteNonQueryAsync();
+
+                await connection.CloseAsync();
+            }
+
+        }
+            
+
 
         private async static Task<bool> IfExistsReserve(string countPeople, string date, string time)
         {
@@ -427,6 +446,75 @@ namespace restaurantBot
 
         }
 
+        public async static Task DeleteReservation(int idReservation)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"DELETE FROM reservation WHERE id_reservation LIKE '{idReservation}' LIMIT 1";
+
+                await command.ExecuteNonQueryAsync();
+
+                await connection.CloseAsync();
+            }
+
+        }
+
+        public async static Task<bool> IfExistsAdmin(long userId)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT COUNT(*) from admins WHERE user_id LIKE '{userId}'";
+
+                object result = await command.ExecuteScalarAsync();
+                long count = Convert.ToInt64(result);
+
+                if (count > 0)
+                {
+                    await connection.CloseAsync();
+                    return true;
+                }
+                else
+                {
+                    await connection.CloseAsync();
+                    return false;
+                }
+
+            }
+
+        }
+        public async static Task AddAdmin(long userId, string name)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                if (await IfExistsAdmin(userId))
+                {
+                    command.CommandText = $"INSERT INTO admins (user_id, name) values (@user_id, @name)";
+
+                    command.Parameters.AddWithValue("@user_id", userId);
+                    command.Parameters.AddWithValue("@name", name);
+
+                    await command.ExecuteNonQueryAsync();
+                    
+                }
+
+                await connection.CloseAsync();
+
+            }
+
+
+        }
 
     }
 }

@@ -28,14 +28,14 @@ namespace restaurantBot
                 chatId: userId,
                 text: $"<b>Пришла бронь на подтверждение! \n  Номер столика: {reservation.IdTable} \n " +
                 $"Дата: {reservation.RegDate} \n Время: {reservation.ReserveTime} Количество мест: {reservation.CountPeople}</b>",
-                replyMarkup: ShowInlineResevationToAnswerAdminButton(reservation.IdReservation.ToString()),
+                replyMarkup: ShowInlineResevationToAnswerAdminButtons(reservation.IdReservation.ToString()),
                 parseMode: ParseMode.Html
                 );
 
             }
         }
 
-        private InlineKeyboardMarkup ShowInlineResevationToAnswerAdminButton(string idReservation)
+        private InlineKeyboardMarkup ShowInlineResevationToAnswerAdminButtons(string idReservation)
         {
             List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
 
@@ -48,8 +48,16 @@ namespace restaurantBot
             return new InlineKeyboardMarkup(buttonRows);
         }
 
+        private static InlineKeyboardMarkup ShowInlineChangeReservationAdminButton()
+        {
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
 
-
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "Забронировать","bron")
+            });
+            return new InlineKeyboardMarkup(buttonRows);
+        }
 
         private long userId;
         private ITelegramBotClient bot;
