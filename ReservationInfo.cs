@@ -16,6 +16,7 @@ namespace restaurantBot
         public string ReserveTime { get; set; }
         public string CountPeople { get; set; }
         public string Confirmation { get; set; }
-
+        public string UserId { get; set; }
+        public string ReserveEndTime { get; set; }  
     }
 }
