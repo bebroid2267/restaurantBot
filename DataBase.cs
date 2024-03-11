@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -14,8 +15,8 @@ namespace restaurantBot
 {
     public static class DataBase
     {
-        private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant .db";
-        //private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
+        //private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant .db";
+        private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
 
 
         public async static Task<bool> IfExistsUser(string userId)
@@ -28,10 +29,9 @@ namespace restaurantBot
                 command.Connection = connection;
                 command.CommandText = $"SELECT count(*) FROM users WHERE user_id LIKE '{userId}'";
 
-                object result = await command.ExecuteScalarAsync();
-                long count = Convert.ToInt64(result);
+                long result = (long)await command.ExecuteScalarAsync();
 
-                if (count > 0)
+                if (result > 0)
                 {
                     connection.Close();
                     return true;
@@ -39,14 +39,14 @@ namespace restaurantBot
                 else
                 {
                     connection.Close();
-                    return false;
+                    return false;       
                 }
 
             }
 
         }
 
-        public async static Task<bool> AddUser(string userId, string regDate, string userName)
+        public async static Task<bool> AddUser(string userId, string regDate)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             {
@@ -57,13 +57,11 @@ namespace restaurantBot
 
                 if (await IfExistsUser(userId) == false)
                 {
-                    command.CommandText = $"INSERT INTO users (user_id, reg_date, user_name) values (@user_id, @reg_date, @user_name)";
+                    command.CommandText = $"INSERT INTO users (user_id, reg_date) values (@user_id, @reg_date)";
 
                     command.Parameters.AddWithValue("@user_id", userId);
                     command.Parameters.AddWithValue("@reg_date", regDate);
-                    command.Parameters.AddWithValue("@user_name", userName);
 
-                    
                     await command.ExecuteNonQueryAsync();
                     connection.Close();
                     return true;
@@ -75,6 +73,89 @@ namespace restaurantBot
             }
 
         }
+        public async static Task<bool> IfUserInfoExists(string userId)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                string numberPhone = string.Empty;
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT number_phone FROM users WHERE user_id LIKE '{userId}'";
+
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    if (!reader.IsDBNull(0))
+                    {
+                        numberPhone = reader.GetString(0);
+                    }
+                    
+                }
+
+                if (numberPhone != string.Empty && numberPhone != null)
+                {
+                    connection.Close();
+                    return true;
+                }
+                else
+                {
+                    connection.Close();
+                    return false;
+                }
+            }       
+
+        }
+
+        public async static Task<List<string>> GetInfoUser(string userId)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<string> infoUsers = new List<string>();
+
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT user_name ,number_phone FROM users WHERE user_id LIKE '{userId}'";
+
+                var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    infoUsers.Add(reader.GetString(0));
+                    infoUsers.Add(reader.GetString(1));
+                }
+                connection.Close();
+                return infoUsers;
+            }
+        }
+
+        public async static Task AddNameOrNumberPhoneUser(string userId, string whatIs, string numberPhoneOrName)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                if (whatIs == "number")
+                {
+                    command.CommandText = $"UPDATE users SET number_phone = '{numberPhoneOrName}' WHERE user_id LIKE '{userId}' ";
+                }
+
+                else if (whatIs == "name")
+                {
+                    command.CommandText = $"UPDATE users SET user_name = '{numberPhoneOrName}' WHERE user_id LIKE '{userId}' ";
+                }
+
+                await command.ExecuteNonQueryAsync();
+                await connection.CloseAsync();
+
+            }
+
+        }
+
         private async static Task<bool> IfStateEsixsts(string userId)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
@@ -85,10 +166,10 @@ namespace restaurantBot
                 command.Connection = connection;
                 command.CommandText = $"SELECT COUNT(*) FROM state_reservetion WHERE user_id LIKE '{userId}'";
 
-                object result = await command.ExecuteScalarAsync();
-                long count = Convert.ToInt64(result);
+                long result = (long)await command.ExecuteScalarAsync();
+                
 
-                if (count > 0)
+                if (result > 0)
                 {
                     connection.Close();
                     return true;
@@ -153,6 +234,7 @@ namespace restaurantBot
 
         }
 
+
         public async static Task<string> GetInfoState(string userId, string info)
         {
             string infoState = string.Empty;
@@ -211,10 +293,13 @@ namespace restaurantBot
                     var reader = await command.ExecuteReaderAsync();
 
                     while (await reader.ReadAsync())
-                    { 
-                        allInfoState.CountPeople = reader.GetString(0);
-                        allInfoState.ReserveDate = reader.GetString(1);
-                        allInfoState.ReserveTime = reader.GetString(2);
+                    {
+                        if (!reader.IsDBNull(1))
+                        { 
+                            allInfoState.CountPeople = reader.GetString(0);
+                            allInfoState.ReserveDate = reader.GetString(1);
+                            allInfoState.ReserveTime = reader.GetString(2);
+                        }
                     }
                 }
                 else if (ifIdExists == "id")
@@ -224,11 +309,14 @@ namespace restaurantBot
                     var reader = await command.ExecuteReaderAsync();
 
                     while (await reader.ReadAsync())
-                    { 
-                        allInfoState.CountPeople = reader.GetString(0);
-                        allInfoState.ReserveDate = reader.GetString(1);
-                        allInfoState.ReserveTime = reader.GetString(2);
-                        allInfoState.IdTable = reader.GetInt32(3);
+                    {
+                        if (!reader.IsDBNull(1))
+                        { 
+                            allInfoState.CountPeople = reader.GetString(0);
+                            allInfoState.ReserveDate = reader.GetString(1);
+                            allInfoState.ReserveTime = reader.GetString(2);
+                            allInfoState.IdTable = reader.GetInt32(3);
+                        }
                     }
                 }
 
@@ -267,10 +355,10 @@ namespace restaurantBot
                 command.CommandText = $"SELECT COUNT(*) FROM reservation WHERE count_people LIKE '{countPeople}'" +
                     $"AND  reserve_date LIKE'{date}'";
 
-                object result = await command.ExecuteScalarAsync();
-                long count = Convert.ToInt64(result);
+                long result = (long)await command.ExecuteScalarAsync();
+                
 
-                if (count > 0)
+                if (result > 0)
                 {
                     connection.Close();
                     return true;
@@ -395,7 +483,7 @@ namespace restaurantBot
             }
 
         }
-        public async static Task AddReservation(int idTable, string reserveDate, string userId, string reserveTime, string countPeople)
+        public async static Task AddReservation(int idTable, string reserveDate, string userId, string reserveTime, string countPeople, string confirmYesNo)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             {
@@ -434,7 +522,7 @@ namespace restaurantBot
                 command.Parameters.AddWithValue("@reserve_time", reserveTime);
                 command.Parameters.AddWithValue("@count_people", countPeople);
                 command.Parameters.AddWithValue("@reserve_end_time", reserveEndTime.ToString("f"));
-                command.Parameters.AddWithValue("@confirmation", "no");
+                command.Parameters.AddWithValue("@confirmation", confirmYesNo);
                 command.Parameters.AddWithValue("@user_id", userId);
 
                 await command.ExecuteNonQueryAsync();
@@ -458,9 +546,8 @@ namespace restaurantBot
 
                 var reader =  command.ExecuteReader();
 
-                while ( reader.Read())
-                {
-
+                while (reader.Read())
+                { 
                     reservation.IdReservation = reader.GetInt32(0);
                     reservation.IdTable = reader.GetInt32(1);
                     reservation.RegDate = reader.GetString(2);
@@ -477,7 +564,43 @@ namespace restaurantBot
                 return reservation;
             }
         }
-        public async static Task<List<ReservationInfo>> GetReservationNoConfiration()
+        public async static Task<List<ReservationInfo>> GetReservetionsUser(string userId)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<ReservationInfo> infoReservetions = new List<ReservationInfo>();   
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT * FROM reservation WHERE user_id LIKE '{userId}' AND confirmation LIKE 'Yes'";
+
+                var reader =  await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    ReservationInfo info = new ReservationInfo();
+                    info.IdReservation = reader.GetInt32(0);
+                    info.IdTable = reader.GetInt32(1);
+                    info.RegDate = reader.GetString(2);
+                    info.ReserveDate = reader.GetString(3);
+                    info.idClient = reader.GetInt32(4);
+                    info.ReserveTime = reader.GetString(5);
+                    info.CountPeople = reader.GetString(6);
+                    info.ReserveEndTime = reader.GetString(7);
+                    info.Confirmation = reader.GetString(8);
+                    info.UserId = reader.GetString(9);
+
+                    infoReservetions.Add(info);
+                }
+
+                connection.Close();
+                return infoReservetions;
+            }
+
+        }
+
+        public async static Task<List<ReservationInfo>> GetReservationNoYesConfiration(string yesNo)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
             {
@@ -487,7 +610,8 @@ namespace restaurantBot
 
                 var command = new SqliteCommand();
                 command.Connection = connection;
-                command.CommandText = $"SELECT id_table, reserve_date, reserve_time, count_people, id_reservation, user_id FROM reservation WHERE confirmation LIKE 'no'";
+
+                command.CommandText = $"SELECT id_table, reserve_date, reserve_time, count_people, id_reservation, user_id FROM reservation WHERE confirmation LIKE '{yesNo}'";
 
                 var reader = await command.ExecuteReaderAsync();
 
@@ -505,7 +629,6 @@ namespace restaurantBot
                 }
 
                 connection.Close();
-
                 return reservations;
             }
 
@@ -517,7 +640,7 @@ namespace restaurantBot
                 connection.Open();
                 var command = new SqliteCommand();
                 command.Connection = connection;
-                command.CommandText = $"UPDATE reservation SET confirmation = 'yes' WHERE id_reservation LIKE '{idReservation}'";
+                command.CommandText = $"UPDATE reservation SET confirmation = 'Yes' WHERE id_reservation LIKE '{idReservation}'";
 
                 await command.ExecuteNonQueryAsync();
                 connection.Close();
