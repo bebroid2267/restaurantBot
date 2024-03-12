@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.IO;
+using System.Net;
 using System.Threading;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -121,16 +122,20 @@ namespace restaurantBot
             {
                 if (callback.Data == "bron" || callback.Data == "backdays")
                 {
-                    string photoPath = @"C:\Users\кирилл\source\repos\restaurantBot\Images\date.jpg";
+                    string FileUrl = @"C:\Users\porka\source\repos\restaurantBot\Images\persons.png";
 
-                    
-
-                    await bot.EditMessageMediaAsync(
+                    using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
+                    {
+                        await bot.DeleteMessageAsync(
+                            chatId: callback.Message.Chat.Id,
+                            messageId: callback.Message.MessageId);
+                        
+                        await bot.SendPhotoAsync(
                         chatId: callback.Message.Chat.Id,
-                        media: new InputMediaPhoto(),
-                        messageId: callback.Message.MessageId,
-                        text: "Выберите на какое количество людей вы хотите забронировать столик ",
+                        photo: new InputFileStream(stream),
+                        caption: "Выберите на какое количество людей вы хотите забронировать столик ",
                         replyMarkup: ShowInlineCountPeopleButton());
+                    }
                 }
                 else if (callback.Data == "MyBron")
                 {
@@ -139,9 +144,8 @@ namespace restaurantBot
                     if (reservetions.Count > 0)
                     {
                         foreach (var reservation in reservetions)
-                        {
-
-                            await bot.SendTextMessageAsync(
+                        { 
+                                await bot.SendTextMessageAsync(
                             chatId: callback.Message.Chat.Id,
                             text: $" <b>#️⃣ Номер брони:</b> {reservation.IdReservation}  \r\n\r\nОписание брони 👇\r\n <i>• 🗓 Дата:</i> {reservation.ReserveDate}\r\n\r\n" +
                             $"<i>• 🕔 Время:</i> {reservation.ReserveTime} \r\n\r\n• \U0001f943 " +
@@ -172,12 +176,20 @@ namespace restaurantBot
 
                     List<string> days = GetDaysInMonth();
 
-                    await bot.EditMessageTextAsync(
-                        chatId: callback.Message.Chat.Id,
-                        messageId: callback.Message.MessageId,
-                        text: "Выберите дату бронирования",
-                        replyMarkup: ShowInlineDateTimeReservation(days, "days"));
+                    string FileUrl = @"C:\Users\porka\source\repos\restaurantBot\Images\date.png";
 
+                            await bot.DeleteMessageAsync(
+                        chatId: callback.Message.Chat.Id,
+                        messageId: callback.Message.MessageId);
+
+                    using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
+                    {
+                            await bot.SendPhotoAsync(
+                        chatId: callback.Message.Chat.Id,
+                        photo: new InputFileStream(stream),
+                        caption: "Выберите дату бронирования",
+                        replyMarkup: ShowInlineDateTimeReservation(days, "days"));
+                    }
                 }
 
                 else if (callback.Data.StartsWith("days") || callback.Data == "backTable")
@@ -205,12 +217,20 @@ namespace restaurantBot
                         hours = GetTimeDay(dateReservation);
                     }
 
-                    await bot.EditMessageTextAsync(
+                    await bot.DeleteMessageAsync(
                         chatId: callback.Message.Chat.Id,
-                        messageId: callback.Message.MessageId,
-                        text: "Выберите время для бронирования",
-                        replyMarkup: ShowInlineDateTimeReservation(hours, "time"));
+                        messageId: callback.Message.MessageId);
 
+                    string FileUrl = @"C:\Users\porka\source\repos\restaurantBot\Images\time.png";
+
+                    using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
+                    {
+                            await bot.SendPhotoAsync(
+                        chatId: callback.Message.Chat.Id,
+                        photo: new InputFileStream(stream),
+                        caption: "Выберите время для бронирования",
+                        replyMarkup: ShowInlineDateTimeReservation(hours, "time"));
+                    }
 
                 }
 
@@ -227,7 +247,7 @@ namespace restaurantBot
 
                         ReservationInfo infoReresvation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "noId");
                         if (infoReresvation.CountPeople == string.Empty)
-                        {
+                        { 
                             await bot.EditMessageTextAsync(
                                 chatId: callback.Message.Chat.Id.ToString(),
                                 messageId: callback.Message.MessageId,
@@ -238,12 +258,22 @@ namespace restaurantBot
 
                         List<string> idsFreeTables = await DataBase.GetFreeIdTables(infoReresvation.CountPeople, infoReresvation.ReserveDate, infoReresvation.ReserveTime);
 
-                        await bot.EditMessageTextAsync(
+
+                        string FileUrl = @"C:\Users\porka\source\repos\restaurantBot\Images\tables.png";
+
+                        await bot.DeleteMessageAsync(
+                            chatId: callback.Message.Chat.Id, 
+                            messageId: callback.Message.MessageId);
+
+                        using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
+                        {
+                            await bot.SendPhotoAsync(
                             chatId: callback.Message.Chat.Id.ToString(),
-                            messageId: callback.Message.MessageId,
-                            text: "<b>Вот свободные столики на указанное время, дату и количество человек</b>",
+                            photo: new InputFileStream(stream),
+                            caption: "<b>Вот свободные столики на указанное время, дату и количество человек</b>",
                             replyMarkup: ShowInlineTableReservation(idsFreeTables),
                             parseMode: ParseMode.Html);
+                        }
                     }
                     else
                     {
@@ -265,12 +295,21 @@ namespace restaurantBot
                     {
                         ReservationInfo infoReservation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "id");
 
-                        await bot.EditMessageTextAsync(
+                        string FileUrl = @"C:\Users\porka\source\repos\restaurantBot\Images\bron.png";
+
+                        await bot.DeleteMessageAsync(
                             chatId: callback.Message.Chat.Id,
-                            messageId: callback.Message.MessageId,
-                            text: $"Проверьте вашу заявку: \n Количество человек: {infoReservation.CountPeople} " +
+                            messageId: callback.Message.MessageId);
+
+                        using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
+                        { 
+                            await bot.SendPhotoAsync(
+                            chatId: callback.Message.Chat.Id,
+                            photo: new InputFileStream(stream),
+                            caption: $"Проверьте вашу заявку: \n Количество человек: {infoReservation.CountPeople} " +
                             $"\n Дата: {infoReservation.ReserveDate} \n Время: {infoReservation.ReserveTime} \n Номер столика: {infoReservation.IdTable}",
                             replyMarkup: ShowFinallyReservationButton());
+                        }
                     }
                     else
                     {

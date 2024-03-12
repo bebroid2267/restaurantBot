@@ -15,8 +15,8 @@ namespace restaurantBot
 {
     public static class DataBase
     {
-        //private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant .db";
-        private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
+        private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant .db";
+        //private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
 
 
         public async static Task<bool> IfExistsUser(string userId)
