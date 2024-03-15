@@ -8,6 +8,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types;
 using System.Dynamic;
+using static restaurantBot.Program;
 
 
 namespace restaurantBot
@@ -178,7 +179,7 @@ namespace restaurantBot
                         userId.ToString(),
                         allInfo.ReserveTime,
                         allInfo.CountPeople,
-                        confirmYesNo: "No"
+                        confirmYesNo: "Yes"
                         );
 
                     await bot.EditMessageTextAsync(
@@ -204,12 +205,13 @@ namespace restaurantBot
 
                 ReservationInfo info = await DataBase.GetAllInfoReservation(idResevation);
 
-                if (info.IdTable != 0 && info.CountPeople != null && info.ReserveDate != null && info.ReserveTime != null && info.Confirmation != "Yes")
+                if (info.IdTable != 0 && info.CountPeople != null && info.ReserveDate != null && info.ReserveTime != null )
                 {
                     await bot.EditMessageTextAsync(
                     chatId: Program.userIdAdmin,
                     messageId: callback.Message.MessageId,
                     text: "Вы успешно отменили бронь клиента");
+
                     await Program.admin.SendStatusReservationToClient(bot, info.UserId, info, "cancel");
 
                     await DataBase.DeleteReservation(idResevation);
@@ -319,9 +321,75 @@ namespace restaurantBot
                 }
 
             }
+            else if (callback.Data == "dateReservations")
+            {
+                List<string> days = Program.GetDaysInMonth();
+
+                await bot.SendTextMessageAsync(
+                    chatId: idAdmin,
+                    text: "Выберите дату для просмотра сопутствующих броней: ",
+                    replyMarkup: Program.ShowInlineDateTimeReservation(days, "CheckAdminDays"));
+
+            }
+
+            else if (callback.Data.StartsWith("CheckAdminDays"))
+            {
+                string dateState = callback.Data.Substring(14); // 14 - length callback.Data where date start
+                dateState = Convert.ToDateTime(dateState).ToString("D");
+
+                List<ReservationInfo> reservations = await DataBase.GetReservetionsToDate(dateState);
+
+                if (reservations.Count > 0)
+                { 
+                    foreach (var reservation in reservations)
+                    {
+                        List<string> infoUser = await DataBase.GetInfoUser(reservation.UserId);
+
+                        await bot.SendTextMessageAsync(
+                            chatId: idAdmin,
+                            text: $"Бронь на дату: {reservation.ReserveDate} \n \n Номер брони: {reservation.IdReservation} \n " +
+                            $"Номер столика: {reservation.IdTable} \n Начало брони: {reservation.ReserveTime} \n " +
+                            $"Конец брони: {reservation.ReserveEndTime} \n Количество персон: {reservation.CountPeople}" +
+                            $"\n \n Данные клиента \n Имя: {infoUser[0]} \n Телефон: {infoUser[1]}",
+                            replyMarkup: ShowInlineAdminReserveToDateCancel(reservation.IdReservation.ToString()));
+
+                    }
+                }
+                else
+                {
+                    await bot.SendTextMessageAsync(
+                        chatId: idAdmin,
+                        text: "На данную дату нету бронирований");
+                }
+            }
+
+            else if (callback.Data == "mainMenuAdmin" || callback.Data == "main menu")
+            {
+                await bot.DeleteMessageAsync(
+                    chatId: callback.Message.Chat.Id,
+                    messageId: callback.Message.MessageId);
+
+                await bot.SendTextMessageAsync(
+                    chatId: callback.Message.Chat.Id.ToString(),
+                        text: "Здравствуйте адмнистратор! \n Вы можете просмотреть есть ли сейчас не подтвержденные заявки на бронь \n Для этого нажмите кнопку снизу: ",
+                            replyMarkup: ShowInlineCheckReservationNoConfirmAdminButton());
+
+                _StateReserve = StateReserve.Home;
+            }
 
 
         }
+        public async Task SendAdminCancelReservation(ReservationInfo reservation)
+        {
+            List<string> infoUser = await DataBase.GetInfoUser(reservation.UserId);
+
+            await bot.SendTextMessageAsync(
+                chatId: userIdAdmin,
+                text: $"Внимание! \n Клиент: {infoUser[0]} \n Телефон: {infoUser[1]} \n\n " +
+                $"Отменил бронь номер {reservation.IdReservation} на {reservation.ReserveDate} \n Время: {reservation.ReserveTime}") ;
+
+        }
+
 
         public InlineKeyboardMarkup ShowInlineResevationToAnswerAdminButtons(string idReservation)
         {
@@ -329,12 +397,24 @@ namespace restaurantBot
 
             buttonRows.Add(new[]
             {
-                InlineKeyboardButton.WithCallbackData(text: "Отменить ⛔️ ", $"cancel {idReservation}"),
-                InlineKeyboardButton.WithCallbackData(text: "Изменить 🔁", $"change  {idReservation}"),
-                InlineKeyboardButton.WithCallbackData(text: "Подтвердить ✅", $"accept {idReservation}")
+                InlineKeyboardButton.WithCallbackData(text: "⛔️ Отменить  ", $"cancel {idReservation}"),
+                InlineKeyboardButton.WithCallbackData(text: "🔁 Изменить ", $"change  {idReservation}"),
+                InlineKeyboardButton.WithCallbackData(text: "✅ Подтвердить ", $"accept {idReservation}")
             });
             return new InlineKeyboardMarkup(buttonRows);
         }
+        public InlineKeyboardMarkup ShowInlineAdminReserveToDateCancel(string idReservation)
+        {
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "⛔️ Отменить  ", $"cancel {idReservation}"),
+                InlineKeyboardButton.WithCallbackData(text: "⭐️ Главное меню", "mainMenuAdmin")
+            });
+            return new InlineKeyboardMarkup(buttonRows);
+        }
+
         //public InlineKeyboardMarkup ShowAcceptChoiceAdmin(string idReservation)
         //{
         //    List<InlineKeyboardButton[]> buttonrRows = new List<InlineKeyboardButton[]>();
@@ -354,10 +434,24 @@ namespace restaurantBot
 
             buttonRows.Add(new[]
             {
-                InlineKeyboardButton.WithCallbackData(text: "Брони без подтверждения","CheckReserveAdmin")
+                InlineKeyboardButton.WithCallbackData(text: "Брони без подтверждения", callbackData: "CheckReserveAdmin"),
+                InlineKeyboardButton.WithCallbackData(text: "Список броней", callbackData: "CheckReadyReserve"),
+                InlineKeyboardButton.WithCallbackData(text: "Брони по дате", callbackData: "dateReservations")
             });
             return new InlineKeyboardMarkup(buttonRows);
         }
+        public static InlineKeyboardMarkup ShowInlineButtonMainMenuAdmin()
+        {
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "⭐️ Главное меню", "mainMenuAdmin")
+
+            });
+            return new InlineKeyboardMarkup(buttonRows);
+        }
+
 
         private readonly long userId = 809666698;
         private ITelegramBotClient bot;

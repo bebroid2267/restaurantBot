@@ -1,12 +1,14 @@
-﻿using System.IO;
-using System.Net;
+﻿using System.Data;
+
 using System.Threading;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using Hangfire.Storage.SQLite;
+using Hangfire;
+
 
 namespace restaurantBot
 {
@@ -17,6 +19,8 @@ namespace restaurantBot
         public static Admin admin;
         public static string userIdChangedReservationByAdmin;
         public static StateReserve _StateReserve;
+        public static TelegramBotClient bot = new TelegramBotClient("6717902573:AAFllwaelabWcpQyJI6_BjO8PUOQ1aNWhT4");
+        public static Timer timer;
 
         public enum StateReserve
         {
@@ -29,9 +33,7 @@ namespace restaurantBot
         }
 
         static void Main(string[] args)
-        {
-            var bot = new TelegramBotClient("6717902573:AAFllwaelabWcpQyJI6_BjO8PUOQ1aNWhT4");
-
+        { 
             admin = new Admin(bot);
             bot.StartReceiving(Update,Error);
 
@@ -40,6 +42,17 @@ namespace restaurantBot
 
         private static async Task Update(ITelegramBotClient bot, Update update, CancellationToken cts)
         {
+            if (timer == null)
+            {
+                TimerCallback callback = new TimerCallback(async delegate (object state)
+                {
+                    await CheckTimeReservation(bot);
+
+                });
+                var hours = 20 * 60 * 1000;
+                timer = new Timer(callback, null, 10, hours);
+            }
+
             if (update != null)
             {
 
@@ -70,17 +83,21 @@ namespace restaurantBot
                     {
                         await bot.SendTextMessageAsync(
                             chatId: message.Chat.Id,
-                            text: "Приветствую! \n Вы можете просмотреть есть ли сейчас не подтвержденные заявки на бронь \n Для этого нажмите кнопку снизу: ",
-                            replyMarkup: ShowInlineCheckReservationNoConfirmAdminButton());
+                            text: "Здравствуйте адмнистратор! \n Вы можете просмотреть есть ли сейчас не подтвержденные заявки на бронь \n Для этого нажмите кнопку снизу: ",
+                            replyMarkup: ShowInlineCheckReservationMenuAdminButton());
                     }
 
                     else
                     { 
                         await bot.SendTextMessageAsync(message.Chat.Id,
-                            text: "Приветствую! \n Вы можете забронировать столик в нашем ресторане прямо сейчас. " +
-                            "\n Или же выберите что вас интересует",
-                            replyMarkup: ShowInlineReserveButton());
+                            text: "<b>🖐Приветствую!\r\n\r\nВы попали к боту ресторана Миллениум 👾\r\n" +
+                            "Здесь вы можете 👇 </b>\r\n\r\n\U0001fa77 <i>Забронировать столик прямо сейчас  \r\n" +
+                            "❤️ Посмотреть свои брони\r\n💙 Узнать где мы находимся\r\n\r\n</i>" +
+                            " <b>⚡️ Вся информация о столиках обновляется автоматически, то есть -\r\n⭐️ Столик, который вы забронировали гарантированно доступен </b>",
+                            replyMarkup: ShowInlineReserveButton(),
+                            parseMode: ParseMode.Html);
                         _StateReserve = StateReserve.Home;
+
                     }
                 }
                 else if (_StateReserve == StateReserve.WriteName)
@@ -91,7 +108,7 @@ namespace restaurantBot
                         chatId: message.Chat.Id,
                         messageId: message.MessageId);
 
-                    string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\number.png";
+                    string FileUrl = @"/root/restaurantbot/Images/number.png";
 
                     using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
                     { 
@@ -113,7 +130,7 @@ namespace restaurantBot
                         chatId: message.Chat.Id,
                         messageId: message.MessageId);
 
-                    string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\bron.png";
+                    string FileUrl = @"/root/restaurantbot/Images/bron.png";
 
                     using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
                     { 
@@ -128,7 +145,10 @@ namespace restaurantBot
 
                 else 
                 {
-                    await bot.SendTextMessageAsync(message.Chat.Id, "Вы");
+                    await bot.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: "<i>Используйте /start для взаимодействия с ботом</i>",
+                        parseMode: ParseMode.Html);
                 }
 
             }
@@ -145,7 +165,7 @@ namespace restaurantBot
             {
                 if (callback.Data == "bron" || callback.Data == "backdays")
                 {
-                    string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\persons.png";
+                    string FileUrl = @"/root/restaurantbot/Images/persons.png";
 
                     using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
                     {
@@ -167,17 +187,27 @@ namespace restaurantBot
                     if (reservetions.Count > 0)
                     {
                         foreach (var reservation in reservetions)
-                        { 
-                                await bot.SendTextMessageAsync(
-                            chatId: callback.Message.Chat.Id,
-                            text: $" <b>#️⃣ Номер брони:</b> {reservation.IdReservation}  \r\n\r\nОписание брони 👇\r\n <i>• 🗓 Дата:</i> {reservation.ReserveDate}\r\n\r\n" +
-                            $"<i>• 🕔 Время:</i> {reservation.ReserveTime} \r\n\r\n• \U0001f943 " +
-                            $"<i>Время окончания брони:</i> {reservation.ReserveEndTime}\r\n\r\n<i>• 👥 Кол-во персон:</i> {reservation.CountPeople} \r\n\r\n• \U0001f943 " +
-                            $"<i>Номер столика:</i> {reservation.IdTable}\r\n\r\n\r\n" +
-                            $"<i>❗️Если здесь нету вашей брони, которую вы недавно отправили на подтверждение - это значит администратор еще не обработал ее.\r\n\r\n" +
-                            $"❗️За час до начала действия брони вам будет прислано сообщение в 📱Telegram</i>\r\n\r\n",
-                            parseMode: ParseMode.Html
-                            );
+                        {
+                            DateTime date = DateTime.Parse(reservation.ReserveDate);
+                            DateTime time = DateTime.Parse(reservation.ReserveTime);
+                            DateTime reserveTime = new DateTime(date.Year, date.Month, date.Day)
+                                .AddHours(time.Hour)
+                                .AddMinutes(time.Minute);
+
+                            if (reserveTime > DateTime.UtcNow.AddHours(3))
+                            { 
+                                    await bot.SendTextMessageAsync(
+                                chatId: callback.Message.Chat.Id,
+                                text: $" <b>#️⃣ Номер брони:</b> {reservation.IdReservation}  \r\n\r\nОписание брони 👇\r\n <i>• 🗓 Дата:</i> {reservation.ReserveDate}\r\n\r\n" +
+                                $"<i>• 🕔 Время:</i> {reservation.ReserveTime} \r\n\r\n• \U0001f943 " +
+                                $"<i>Время окончания брони:</i> {reservation.ReserveEndTime}\r\n\r\n<i>• 👥 Кол-во персон:</i> {reservation.CountPeople} \r\n\r\n• \U0001f943 " +
+                                $"<i>Номер столика:</i> {reservation.IdTable}\r\n\r\n\r\n" +
+                                $"<i>❗️Если здесь нету вашей брони, которую вы недавно отправили на подтверждение - это значит администратор еще не обработал ее.\r\n\r\n" +
+                                $"❗️За час до начала действия брони вам будет прислано сообщение в 📱Telegram</i>\r\n\r\n",
+                                replyMarkup: ShowInlineButtonMyBron(reservation.IdReservation),
+                                parseMode: ParseMode.Html
+                                );
+                            }
                         }
                     }
                     else
@@ -199,7 +229,7 @@ namespace restaurantBot
 
                     List<string> days = GetDaysInMonth();
 
-                    string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\date.png";
+                    string FileUrl = @"/root/restaurantbot/Images/date.png";
 
                             await bot.DeleteMessageAsync(
                         chatId: callback.Message.Chat.Id,
@@ -244,7 +274,7 @@ namespace restaurantBot
                         chatId: callback.Message.Chat.Id,
                         messageId: callback.Message.MessageId);
 
-                    string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\time.png";
+                    string FileUrl = @"/root/restaurantbot/Images/time.png";
 
                     using (var stream = System.IO.File.Open(FileUrl, FileMode.Open))
                     {
@@ -285,7 +315,7 @@ namespace restaurantBot
                         List<string> idsFreeTables = await DataBase.GetFreeIdTables(infoReresvation.CountPeople, infoReresvation.ReserveDate, infoReresvation.ReserveTime);
 
 
-                        string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\tables.png";
+                        string FileUrl = @"/root/restaurantbot/Images/tables.png";
 
                         await bot.DeleteMessageAsync(
                             chatId: callback.Message.Chat.Id, 
@@ -321,7 +351,7 @@ namespace restaurantBot
                     {
                         ReservationInfo infoReservation = await DataBase.GetAllInfoState(callback.Message.Chat.Id.ToString(), "id");
 
-                        string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\bron.png";
+                        string FileUrl = @"/root/restaurantbot/Images/bron.png";
 
                         await bot.DeleteMessageAsync(
                             chatId: callback.Message.Chat.Id,
@@ -332,14 +362,15 @@ namespace restaurantBot
                             await bot.SendPhotoAsync(
                             chatId: callback.Message.Chat.Id,
                             photo: new InputFileStream(stream),
-                            caption: $"Проверьте вашу заявку: \n Количество человек: {infoReservation.CountPeople} " +
-                            $"\n Дата: {infoReservation.ReserveDate} \n Время: {infoReservation.ReserveTime} \n Номер столика: {infoReservation.IdTable}",
-                            replyMarkup: ShowFinallyReservationButton());
+                            caption: $"Проверьте вашу заявку: \n\n <i>Количество человек: {infoReservation.CountPeople} " +
+                            $"\n Дата: {infoReservation.ReserveDate} \n Время: {infoReservation.ReserveTime} \n Номер столика: {infoReservation.IdTable}</i>",
+                            replyMarkup: ShowFinallyReservationButton(),
+                            parseMode: ParseMode.Html);
                         }
                     }
                     else
                     {
-                        string FileUrl = @"C:\Users\кирилл\source\repos\restaurantBot\Images\name.png";
+                        string FileUrl = @"/root/restaurantbot/Images/name.png";
 
                         await bot.DeleteMessageAsync(
                             chatId: callback.Message.Chat.Id,
@@ -385,18 +416,110 @@ namespace restaurantBot
 
                 else if (callback.Data == "main menu")
                 {
+                    if (callback.Message.Chat.Id != 0)
+                    { 
+                        await bot.DeleteMessageAsync(
+                            chatId: callback.Message.Chat.Id,
+                            messageId: callback.Message.MessageId);
+                    }
+
+                    await bot.SendTextMessageAsync(
+                        chatId: callback.Message.Chat.Id.ToString(),
+                            text: "<b>🖐Приветствую!\r\n\r\nВы попали к боту ресторана Миллениум 👾\r\n" +
+                            "Здесь вы можете 👇 </b>\r\n\r\n\U0001fa77 <i>Забронировать столик прямо сейчас  \r\n" +
+                            "❤️ Посмотреть свои брони\r\n💙 Узнать где мы находимся\r\n\r\n</i>" +
+                            " <b>⚡️ Вся информация о столиках обновляется автоматически, то есть -\r\n⭐️ Столик, который вы забронировали гарантированно доступен </b>",
+                            replyMarkup: ShowInlineReserveButton(),
+                            parseMode: ParseMode.Html);
+
+                    _StateReserve = StateReserve.Home;
+                }
+
+                else if (callback.Data == "main menu from info")
+                {
                     await bot.DeleteMessageAsync(
                         chatId: callback.Message.Chat.Id,
                         messageId: callback.Message.MessageId);
 
-                    await bot.SendTextMessageAsync(
-                        chatId: callback.Message.Chat.Id.ToString(),
-                            text: "Приветствую! \n Вы можете забронировать столик в нашем ресторане прямо сейчас. " +
-                            "\n Или же выберите что вас интересует",
-                            replyMarkup: ShowInlineReserveButton());
-
-                    _StateReserve = StateReserve.Home;
+                    if (callback.Message.MessageId - 1 != 0)
+                    { 
+                        await bot.EditMessageTextAsync(
+                            chatId: callback.Message.Chat.Id,
+                            messageId: callback.Message.MessageId - 1,
+                            text: "<b>🖐Приветствую!\r\n\r\nВы попали к боту ресторана Миллениум 👾\r\n" +
+                                "Здесь вы можете 👇 </b>\r\n\r\n\U0001fa77 <i>Забронировать столик прямо сейчас  \r\n" +
+                                "❤️ Посмотреть свои брони\r\n💙 Узнать где мы находимся\r\n\r\n</i>" +
+                                " <b>⚡️ Вся информация о столиках обновляется автоматически, то есть -\r\n⭐️ Столик, который вы забронировали гарантированно доступен </b>",
+                                replyMarkup: ShowInlineReserveButton(),
+                                parseMode: ParseMode.Html);
+                    }
                 }
+
+                else if (callback.Data == "infoRestaurant")
+                { 
+                    await bot.SendTextMessageAsync(
+                        chatId: callback.Message.Chat.Id,
+                        text: "<i>🔮 Информация о нас\r\n\r\n❕Мы находимся: Трубная ул., 12, 1 этаж, Москва, 107045\r\n\r\n" +
+                        "❕Работаем каждый день с 09:00 до 00:00\r\n\r\n🚗Как добраться\r\n\r\n\r\n" +
+                        "• От Ⓜ️ метро Лубянка : автобус м2 - 1 остановка\r\n\r\n• От Ⓜ️ метро Охотный ряд : автобус с633 - 1 остановка\r\n\r\n" +
+                        "• От Ⓜ️ метро Театральная : автобус м2 - 1 остановка, автобус н6 - 2 остановки\r\n\r\n" +
+                        "• От Ⓜ️ метро Площадь Революции : автобус с633 - 1 остановка, автобус н6 - 2 остановки\r\n\r\n" +
+                        "• ОтⓂ️ метро Китай-город : автобус с633 - 1 остановка, автобус н6 - 3 остановки</i>",
+                        parseMode: ParseMode.Html);
+
+                    await bot.SendLocationAsync(
+                        chatId: callback.Message.Chat.Id,
+                        latitude: 55.76852073411804,
+                        longitude: 37.624610585833395,
+                        replyMarkup: ShowInlineButtonMainMenuFromInfo()
+                        );
+                }
+
+                else if (callback.Data.StartsWith("cancelBron"))
+                {
+                    int idReservation = int.Parse(callback.Data.Substring(10));
+
+                    ReservationInfo infoReservation = await DataBase.GetAllInfoReservation(idReservation);
+
+                    DateTime date = DateTime.Parse(infoReservation.ReserveDate);
+                    DateTime time = DateTime.Parse(infoReservation.ReserveTime);
+                    DateTime reserveTime = new DateTime(date.Year, date.Month, date.Day)
+                        .AddHours(time.Hour)
+                        .AddMinutes(time.Minute);
+
+                    TimeSpan differentTimes = reserveTime - DateTime.UtcNow.AddHours(3);
+
+                    if (differentTimes.TotalHours > 4)
+                    {
+                        await bot.DeleteMessageAsync(
+                            chatId: callback.Message.Chat.Id,
+                            messageId: callback.Message.MessageId);
+
+                        await bot.SendTextMessageAsync(
+                            chatId: callback.Message.Chat.Id,
+                            text: "<i>Вы успешно отменили бронь на столик </i>",
+                            replyMarkup: ShowInlineButtonMenu(),
+                            parseMode: ParseMode.Html);
+
+                        ReservationInfo reservation = await DataBase.GetAllInfoReservation(idReservation);
+
+                        await admin.SendAdminCancelReservation(reservation);
+
+                        await DataBase.DeleteReservation(idReservation);
+                    }
+                    else 
+                    {
+                        await bot.EditMessageTextAsync(
+                            chatId: callback.Message.Chat.Id,
+                            messageId: callback.Message.MessageId,
+                            text: "<i>К сожалению, вы не можете отменить бронь, если до ее начала осталось меньше 4 часов</i>",
+                            replyMarkup: ShowInlineButtonMainMenuFromInfo(),
+                            parseMode: ParseMode.Html);
+                    
+                    }
+
+                }
+
             }
         }
 
@@ -420,8 +543,9 @@ namespace restaurantBot
 
             buttonRows.Add(new[]
             {
-                InlineKeyboardButton.WithCallbackData(text: "Забронировать","bron"),
-                InlineKeyboardButton.WithCallbackData(text: "Мои брони","MyBron")
+                InlineKeyboardButton.WithCallbackData(text: "💜 Забронировать","bron"),
+                InlineKeyboardButton.WithCallbackData(text: "❤️ Мои брони","MyBron"),
+                InlineKeyboardButton.WithCallbackData(text: "💙 Инфо о нас", "infoRestaurant")
 
             });
             return new InlineKeyboardMarkup (buttonRows);
@@ -461,7 +585,12 @@ namespace restaurantBot
                     {
                         buttonsRow.Add(InlineKeyboardButton.WithCallbackData(day, $"{infoDateTime}" + day.ToString()));
                     }
-                    else
+                    else if (infoDateTime == "days")
+                    {
+                        string textDay = Convert.ToDateTime(day).ToString("M");
+                        buttonsRow.Add(InlineKeyboardButton.WithCallbackData(textDay, $"{infoDateTime}" + day.ToString()));
+                    }
+                    else if (infoDateTime == "CheckAdminDays")
                     {
                         string textDay = Convert.ToDateTime(day).ToString("M");
                         buttonsRow.Add(InlineKeyboardButton.WithCallbackData(textDay, $"{infoDateTime}" + day.ToString()));
@@ -488,8 +617,7 @@ namespace restaurantBot
                 {
                     InlineKeyboardButton.WithCallbackData(text: $"Столик N {table}", $"table {table}" )
                 });
-                
-                    
+
             }
             buttonRows.Add(new[]
             {
@@ -512,14 +640,50 @@ namespace restaurantBot
             });
             return new InlineKeyboardMarkup(buttonRows);
         }
-        public static InlineKeyboardMarkup ShowInlineCheckReservationNoConfirmAdminButton()
+        public static InlineKeyboardMarkup ShowInlineCheckReservationMenuAdminButton()
         {
             List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
 
             buttonRows.Add(new[]
             {
                 InlineKeyboardButton.WithCallbackData(text: "Брони без подтверждения", callbackData: "CheckReserveAdmin"),
-                InlineKeyboardButton.WithCallbackData(text: "Список броней", callbackData: "CheckReadyReserve")
+                InlineKeyboardButton.WithCallbackData(text: "Список броней", callbackData: "CheckReadyReserve"),
+                InlineKeyboardButton.WithCallbackData(text: "Брони по дате", callbackData: "dateReservations")
+            });
+            return new InlineKeyboardMarkup(buttonRows);
+        }
+
+        public static InlineKeyboardMarkup ShowInlineButtonMyBron(int idReservation)
+        {
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "⭐️ Главное меню", "main menu"),
+                InlineKeyboardButton.WithCallbackData(text: "⛔️ Отменить бронь", $"cancelBron{idReservation}" )
+
+            });
+            return new InlineKeyboardMarkup(buttonRows);
+        }
+        public static InlineKeyboardMarkup ShowInlineButtonMainMenuFromInfo()
+        {
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "⭐️ Главное меню", "main menu from info")
+                
+            });
+            return new InlineKeyboardMarkup(buttonRows);
+        }
+        public static InlineKeyboardMarkup ShowInlineButtonMenu()
+        {
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+
+            buttonRows.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(text: "⭐️ Главное меню", "main menu")
+
             });
             return new InlineKeyboardMarkup(buttonRows);
         }
@@ -554,7 +718,6 @@ namespace restaurantBot
                 }
             }
 
-            
             return hours;
         }
         public static List<string> GetDaysInMonth()
@@ -572,6 +735,49 @@ namespace restaurantBot
                 return days;
 
         }
+        public async static Task CheckTimeReservation(ITelegramBotClient bot)
+        {
+            List<ReservationInfo> info = await DataBase.GetCheckStartReservation();
 
+            foreach (var reservation in info)
+            {
+                DateTime date = DateTime.Parse(reservation.ReserveDate);
+                DateTime time = DateTime.Parse(reservation.ReserveTime);
+                DateTime startReserveTime = new DateTime(date.Year, date.Month, date.Day)
+                    .AddHours(time.Hour)
+                    .AddMinutes(time.Minute);
+
+                TimeSpan differenceTime = startReserveTime - DateTime.UtcNow.AddHours(3);
+
+                if (differenceTime.TotalHours <= 1 && differenceTime.TotalMinutes >= 50 || differenceTime.TotalHours == 1 && differenceTime.TotalMinutes <= 10)
+                {
+                    await SendUserLeftReservation(bot, reservation.IdReservation);
+                }
+                else
+                {
+                    Console.WriteLine("тест збс");
+                }
+
+            }
+            
+        }
+
+        public async static Task SendUserLeftReservation(ITelegramBotClient bot, int idReservation)
+        {
+            ReservationInfo info = await DataBase.GetAllInfoReservation(idReservation);
+
+            if (info.IdReservation != 0 && info.ReserveDate != null)
+            {
+                await bot.SendTextMessageAsync(
+                    chatId: info.UserId,
+                    text: $"<b>❗️Напоминание ❗️\r\n\r\n➡️До начала вашей брони остался один час." +
+                    $"\r\n\r\n#️⃣ Номер брони: {info.IdReservation} \r\n\r\nОписание  👇</b>\r\n <i>• 🗓 Дата: {info.ReserveDate}\r\n\r\n" +
+                    $"• 🕔 Время: {info.ReserveTime} \r\n\r\n• \U0001f943 Время окончания брони: {info.ReserveEndTime}\r\n\r\n" +
+                    $"• 👥 Кол-во персон: {info.CountPeople} \r\n\r\n• \U0001f943 Номер столика: {info.IdTable}</i>\r\n\r\n",
+                    parseMode: ParseMode.Html);
+            }
+            
+
+        }
     }
 }

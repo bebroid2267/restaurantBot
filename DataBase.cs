@@ -16,7 +16,8 @@ namespace restaurantBot
     public static class DataBase
     {
         //private static readonly string connectionString = @"Data Source = C:\Users\porka\OneDrive\Рабочий стол\restaurant .db";
-        private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
+        //private static readonly string connectionString = @"Data Source = C:\Users\кирилл\Desktop\restaurant.db";
+        private static readonly string connectionString = @"Data Source = /root/restaurantbot/restaurant.db";
 
 
         public async static Task<bool> IfExistsUser(string userId)
@@ -532,6 +533,42 @@ namespace restaurantBot
 
         }
 
+        public async static Task<List<ReservationInfo>> GetReservetionsToDate(string date)
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<ReservationInfo> infoReservetions = new List<ReservationInfo>();
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT * FROM reservation WHERE reserve_date LIKE '{date}' AND confirmation LIKE 'Yes'";
+
+                var reader = await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    ReservationInfo info = new ReservationInfo();
+                    info.IdReservation = reader.GetInt32(0);
+                    info.IdTable = reader.GetInt32(1);
+                    info.RegDate = reader.GetString(2);
+                    info.ReserveDate = reader.GetString(3);
+                    info.idClient = reader.GetInt32(4);
+                    info.ReserveTime = reader.GetString(5);
+                    info.CountPeople = reader.GetString(6);
+                    info.ReserveEndTime = reader.GetString(7);
+                    info.Confirmation = reader.GetString(8);
+                    info.UserId = reader.GetString(9);
+
+                    infoReservetions.Add(info);
+                }
+
+                connection.Close();
+                return infoReservetions;
+            }
+
+        }
+
         public async static Task<ReservationInfo> GetAllInfoReservation(int idReservation)
         {
             using (SqliteConnection connection = new SqliteConnection(connectionString))
@@ -665,7 +702,36 @@ namespace restaurantBot
 
         }
 
-        
+        public async static Task<List<ReservationInfo>> GetCheckStartReservation()
+        {
+            using (SqliteConnection connection = new SqliteConnection(connectionString))
+            {
+                List<ReservationInfo> reservations = new List<ReservationInfo>();
+                connection.Open();
+
+                var command = new SqliteCommand();
+                command.Connection = connection;
+                command.CommandText = $"SELECT id_reservation, reserve_date, reserve_time FROM reservation WHERE confirmation LIKE 'Yes'";
+
+                var reader = await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    ReservationInfo reservation = new ReservationInfo();
+                    reservation.IdReservation = reader.GetInt32(0);
+                    reservation.ReserveDate = reader.GetString(1);
+                    reservation.ReserveTime = reader.GetString(2);
+
+                    reservations.Add(reservation);
+                }
+                connection.Close();
+                return reservations;
+
+            }
+
+        }
+
+
 
     }
 }
